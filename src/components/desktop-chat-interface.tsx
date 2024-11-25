@@ -5,6 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Send, Search, Plus } from "lucide-react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import Navbar from "./Navbar";
 
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_API_KEY!);
 
@@ -128,13 +129,13 @@ export function DesktopChatInterface() {
       .split("\n")
       .map((line) => {
         line = line.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-  
+
         if (line.trim().startsWith("*")) {
           line = `<li>${line.substring(1).trim()}</li>`;
-        } else if (/^\d+\./.test(line.trim())) { 
+        } else if (/^\d+\./.test(line.trim())) {
           line = `<li>${line.substring(line.indexOf(".") + 1).trim()}</li>`;
         }
-  
+
         return line;
       })
       .join("\n")
@@ -150,140 +151,142 @@ export function DesktopChatInterface() {
       })
       .join("");
   };
-  
 
   return (
-    <div className="flex h-screen bg-white dark:bg-zinc-950">
-      <div className="w-80 border-r flex flex-col">
-        <div className="p-4 border-b">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-zinc-500 dark:text-zinc-400" />
-            <Input placeholder="Search conversations" className="pl-8" />
+    <div>
+      <Navbar />
+      <div className="flex h-screen bg-white dark:bg-zinc-950">
+        <div className="w-80 border-r flex flex-col">
+          <div className="p-4 border-b">
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-zinc-500 dark:text-zinc-400" />
+              <Input placeholder="Search conversations" className="pl-8" />
+            </div>
+          </div>
+
+          <ScrollArea className="flex-1">
+            {conversations.map((conversation) => (
+              <div
+                key={conversation.id}
+                className={`p-4 cursor-pointer hover:bg-muted ${
+                  activeConversation === conversation.id ? "'bg-muted'" : "''"
+                }`}
+                onClick={() => setActiveConversation(conversation.id)}
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-semibold">{conversation.name}</h3>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                      {conversation.lastMessage}
+                    </p>
+                  </div>
+                  {conversation.unreadCount > 0 && (
+                    <span className="bg-zinc-900 text-zinc-50 text-xs font-bold px-2 py-1 rounded-full dark:bg-zinc-50 dark:text-zinc-900">
+                      {conversation.unreadCount}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </ScrollArea>
+
+          <div className="p-4 border-t mt-auto">
+            <Button className="w-full">
+              <Plus className="w-4 h-4 mr-2" />
+              New Chat
+            </Button>
           </div>
         </div>
 
-        <ScrollArea className="flex-1">
-          {conversations.map((conversation) => (
-            <div
-              key={conversation.id}
-              className={`p-4 cursor-pointer hover:bg-muted ${
-                activeConversation === conversation.id ? "'bg-muted'" : "''"
-              }`}
-              onClick={() => setActiveConversation(conversation.id)}
-            >
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="font-semibold">{conversation.name}</h3>
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                    {conversation.lastMessage}
-                  </p>
-                </div>
-                {conversation.unreadCount > 0 && (
-                  <span className="bg-zinc-900 text-zinc-50 text-xs font-bold px-2 py-1 rounded-full dark:bg-zinc-50 dark:text-zinc-900">
-                    {conversation.unreadCount}
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-        </ScrollArea>
+        <div className="flex-1 flex flex-col h-screen">
+          <div className="p-4 border-b flex justify-between items-center">
+            <h2 className="text-2xl font-bold">
+              {conversations.find((c) => c.id === activeConversation)?.name}
+            </h2>
+          </div>
 
-        <div className="p-4 border-t mt-auto">
-          <Button className="w-full">
-            <Plus className="w-4 h-4 mr-2" />
-            New Chat
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex-1 flex flex-col h-screen">
-        <div className="p-4 border-b flex justify-between items-center">
-          <h2 className="text-2xl font-bold">
-            {conversations.find((c) => c.id === activeConversation)?.name}
-          </h2>
-        </div>
-
-        <ScrollArea className="flex-1 p-4 pb-20">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex mb-4 ${
-                message.sender === "user" ? "justify-end" : "justify-start"
-              }`}
-            >
+          <ScrollArea className="flex-1 p-4 pb-20">
+            {messages.map((message) => (
               <div
-                className={`flex items-start space-x-2 max-w-[70%] ${
-                  message.sender === "user"
-                    ? "flex-row-reverse space-x-reverse"
-                    : ""
+                key={message.id}
+                className={`flex mb-4 ${
+                  message.sender === "user" ? "justify-end" : "justify-start"
                 }`}
               >
-                <Avatar className="w-8 h-8">
-                  <AvatarFallback>
-                    {message.sender === "user" ? "U" : "A"}
-                  </AvatarFallback>
-                </Avatar>
                 <div
-                  className={`p-3 rounded-lg ${
+                  className={`flex items-start space-x-2 max-w-[70%] ${
                     message.sender === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
+                      ? "flex-row-reverse space-x-reverse"
+                      : ""
                   }`}
                 >
-                  {message.sender === "advisor" ? (
-                    <div
-                      className="text-sm"
-                      dangerouslySetInnerHTML={{
-                        __html: formatAIResponse(message.text),
-                      }}
-                    />
-                  ) : (
-                    <p className="text-sm">{message.text}</p>
-                  )}
-                  <p className="text-xs text-zinc-500 mt-1 dark:text-zinc-400">
-                    {message.timestamp.toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
+                  <Avatar className="w-8 h-8">
+                    <AvatarFallback>
+                      {message.sender === "user" ? "U" : "A"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div
+                    className={`p-3 rounded-lg ${
+                      message.sender === "user"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted"
+                    }`}
+                  >
+                    {message.sender === "advisor" ? (
+                      <div
+                        className="text-sm"
+                        dangerouslySetInnerHTML={{
+                          __html: formatAIResponse(message.text),
+                        }}
+                      />
+                    ) : (
+                      <p className="text-sm">{message.text}</p>
+                    )}
+                    <p className="text-xs text-zinc-500 mt-1 dark:text-zinc-400">
+                      {message.timestamp.toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-          {isLoading && (
-            <div className="flex justify-start mb-4">
-              <div className="flex items-center space-x-2">
-                <Avatar className="w-8 h-8">
-                  <AvatarFallback>A</AvatarFallback>
-                </Avatar>
-                <div className="p-3 rounded-lg bg-muted">
-                  <p className="text-sm">Thinking...</p>
+            ))}
+            {isLoading && (
+              <div className="flex justify-start mb-4">
+                <div className="flex items-center space-x-2">
+                  <Avatar className="w-8 h-8">
+                    <AvatarFallback>A</AvatarFallback>
+                  </Avatar>
+                  <div className="p-3 rounded-lg bg-muted">
+                    <p className="text-sm">Thinking...</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </ScrollArea>
+            )}
+          </ScrollArea>
 
-        <div className="p-4 border-t bg-white dark:bg-zinc-950 fixed bottom-0 left-80 right-0">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSend();
-            }}
-            className="flex space-x-2"
-          >
-            <Input
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Type your message..."
-              className="flex-grow"
-              disabled={isLoading}
-            />
-            <Button type="submit" disabled={isLoading}>
-              <Send className="h-4 w-4 mr-2" />
-              Send
-            </Button>
-          </form>
+          <div className="p-4 border-t bg-white dark:bg-zinc-950 fixed bottom-0 left-80 right-0">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSend();
+              }}
+              className="flex space-x-2"
+            >
+              <Input
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Type your message..."
+                className="flex-grow"
+                disabled={isLoading}
+              />
+              <Button type="submit" disabled={isLoading}>
+                <Send className="h-4 w-4 mr-2" />
+                Send
+              </Button>
+            </form>
+          </div>
         </div>
       </div>
     </div>

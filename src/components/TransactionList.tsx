@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import ExpenseMoodGraph from "./ExpenseMoodGraph";
+import TransactionAnalysis from "./TransactionAnalysis";
 
 const moodIcons: Record<string, React.ReactNode> = {
   rad: <PartyPopper className="w-5 h-5 text-green-500" />,
@@ -262,6 +263,7 @@ export function TransactionList() {
         </CardContent>
       </Card>
       <ExpenseMoodGraph transactions={filteredTransactions} />
+      <TransactionAnalysis transactions={filteredTransactions} />
     </div>
   );
 }

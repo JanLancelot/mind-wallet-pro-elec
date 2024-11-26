@@ -1,9 +1,9 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { DesktopChatInterface } from "./components/desktop-chat-interface";
 import Home from "./pages/Home";
 import AuthPage from "./pages/Authentication";
 import { AuthProvider } from "./useAuth";
+import Chat from "./pages/Chat";
 
 const App: React.FC = () => {
   return (
@@ -13,7 +13,7 @@ const App: React.FC = () => {
           <Route path="/" element={<AuthPage />} />
 
           <Route path="/home" element={<Home />} />
-          <Route path="/chat" element={<DesktopChatInterface />} />
+          <Route path="/chat" element={<Chat />} />
         </Routes>
       </Router>
     </AuthProvider>

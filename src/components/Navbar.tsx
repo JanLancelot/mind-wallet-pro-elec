@@ -34,7 +34,7 @@ export default function Navbar() {
     <header className="border-b">
       <div className="flex h-16 items-center px-4 container mx-auto">
         <div className="mr-8">
-          <a href="/" className="font-bold text-xl">MindWallet</a>
+          <a href="/" className="font-bold text-xl">Budgee</a>
         </div>
 
         <div className="hidden md:flex flex-1">

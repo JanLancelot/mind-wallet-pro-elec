@@ -1,9 +1,24 @@
-import React, { useState } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { AlertCircle, TrendingUp, TrendingDown } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+} from "@/components/ui/card";
+import {
+  AlertCircle,
+  TrendingUp,
+  TrendingDown,
+  Loader2,
+  Brain,
+  Target,
+  AlertTriangle,
+  ThumbsUp,
+} from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 
 interface Transaction {
   date: string;
@@ -17,18 +32,86 @@ interface TransactionAnalysisProps {
   transactions: Transaction[];
 }
 
+interface AnalysisSection {
+  title: string;
+  content: string[];
+  icon: keyof typeof sectionIcons;
+  sentiment?: "positive" | "negative" | "neutral";
+}
+
+const sectionIcons = {
+  patterns: Brain,
+  emotions: Target,
+  concerns: AlertTriangle,
+  positives: ThumbsUp,
+};
+
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_API_KEY!);
 
-const TransactionAnalysis: React.FC<TransactionAnalysisProps> = ({ transactions }) => {
-  const [analysis, setAnalysis] = useState<string>('');
+const TransactionAnalysis: React.FC<TransactionAnalysisProps> = ({
+  transactions,
+}) => {
+  const [parsedAnalysis, setParsedAnalysis] = useState<AnalysisSection[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>('');
+  const [error, setError] = useState<string>("");
 
-  const generateAnalysis = async () => {
+  const parseAnalysisIntoSections = useCallback(
+    (text: string): AnalysisSection[] => {
+      const sections: AnalysisSection[] = [];
+      const lines = text.split("\n");
+      let currentSection: AnalysisSection | null = null;
+
+      lines.forEach((line) => {
+        if (line.startsWith("# ")) {
+          if (currentSection) {
+            sections.push(currentSection);
+          }
+          const title = line.replace("# ", "");
+          currentSection = {
+            title,
+            content: [],
+            icon: getSectionIcon(title),
+            sentiment: getSectionSentiment(title),
+          };
+        } else if (currentSection && line.trim()) {
+          currentSection.content.push(line.trim());
+        }
+      });
+
+      if (currentSection) {
+        sections.push(currentSection);
+      }
+
+      return sections;
+    },
+    []
+  );
+
+  const getSectionIcon = (title: string): keyof typeof sectionIcons => {
+    if (title.toLowerCase().includes("pattern")) return "patterns";
+    if (title.toLowerCase().includes("emotion")) return "emotions";
+    if (title.toLowerCase().includes("concern")) return "concerns";
+    return "positives";
+  };
+
+  const getSectionSentiment = (
+    title: string
+  ): "positive" | "negative" | "neutral" => {
+    if (title.toLowerCase().includes("concern")) return "negative";
+    if (title.toLowerCase().includes("positive")) return "positive";
+    return "neutral";
+  };
+
+  const generateAnalysis = useCallback(async () => {
     setIsLoading(true);
-    setError('');
+    setError("");
 
     try {
+      if (!transactions.length) {
+        setParsedAnalysis([]);
+        return;
+      }
+
       const analysisData = transactions.map((t) => ({
         date: new Date(t.date).toLocaleDateString(),
         amount: t.amount,
@@ -37,79 +120,132 @@ const TransactionAnalysis: React.FC<TransactionAnalysisProps> = ({ transactions 
         description: t.description,
       }));
 
-      const moodPatterns = transactions.reduce<Record<string, number>>((acc, t) => {
-        acc[t.mood] = (acc[t.mood] || 0) + t.amount;
-        return acc;
-      }, {});
+      const moodPatterns = transactions.reduce<Record<string, number>>(
+        (acc, t) => {
+          acc[t.mood] = (acc[t.mood] || 0) + t.amount;
+          return acc;
+        },
+        {}
+      );
 
-      const prompt = `As a financial advisor, analyze these transactions and provide personalized recommendations. Focus on:
-      1. Overall spending patterns
-      2. Emotional spending trends (based on mood data)
-      3. Specific recommendations for improvement
-      4. Areas of concern and positive habits
+      const prompt = `Analyze these transactions and provide insights in the following format:
+
+      # Spending Patterns
+      [List 3-4 key patterns with bullet points]
+
+      # Emotional Spending Trends
+      [Analyze mood-based spending with bullet points]
+
+      # Areas of Concern
+      [List specific concerns with bullet points]
+
+      # Positive Habits
+      [List positive behaviors to reinforce with bullet points]
 
       Transaction Data:
       ${JSON.stringify(analysisData)}
 
-      Mood-based spending patterns:
+      Mood-based spending:
       ${JSON.stringify(moodPatterns)}
 
-      Provide a concise, actionable analysis with specific recommendations based on both the spending amounts and the associated moods.`;
+      Make each section concise and actionable.
+      Note: Each transaction is made using the Philippine peso.
+      `;
 
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-002" });
       const result = await model.generateContent(prompt);
       const response = await result.response;
+      const analysisText = await response.text();
 
-      setAnalysis(await response.text());
-    } catch (err) {
-      setError('Unable to generate spending analysis. Please try again later.');
-      console.error('Analysis generation error:', err);
+      setParsedAnalysis(parseAnalysisIntoSections(analysisText));
+    } catch (err: unknown) {
+      let errorMessage = "Unable to generate spending analysis. Please try again later.";
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      } else if (typeof err === 'string') {
+          errorMessage = err;
+      }
+      setError(errorMessage);
+      console.error("Analysis generation error:", err);
     } finally {
       setIsLoading(false);
     }
+  }, [transactions, parseAnalysisIntoSections]);
+
+  const shouldShowUpTrend = (text: string): boolean => {
+    const upwardIndicators = [
+      "increase",
+      "higher",
+      "more",
+      "significant spending",
+      "high-value",
+      "large purchases",
+      "strong interest",
+      "overspending",
+      "lack of budgeting",
+      "impulsive",
+    ];
+
+    return upwardIndicators.some((indicator) =>
+      text.toLowerCase().includes(indicator.toLowerCase())
+    );
   };
 
-  const formatText = (text: string): JSX.Element[] => {
-    const parts = text.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, index) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={index} className="font-semibold">
-          {part.slice(2, -2)}
-        </strong>;
-      }
-      return <span key={index}>{part}</span>;
-    });
-  };
+  const formatBulletPoint = useCallback((text: string): JSX.Element => {
+    const parts = text.split(/(\*\*.*?\*\*)/).filter(Boolean);
+    const isUpwardTrend = shouldShowUpTrend(text);
 
-  const formatAnalysis = (text: string): JSX.Element[] => {
-    if (!text) return [];
+    return (
+      <div className="flex items-start gap-3 mt-3">
+        {isUpwardTrend ? (
+          <TrendingUp className="w-4 h-4 text-red-500 mt-1 flex-shrink-0" />
+        ) : (
+          <TrendingDown className="w-4 h-4 text-green-500 mt-1 flex-shrink-0" />
+        )}
+        <p className="text-sm leading-relaxed">
+          {parts.map((part, index) => {
+            if (part.startsWith("**") && part.endsWith("**")) {
+              return (
+                <span key={index} className="font-bold">
+                  {part.slice(2, -2)}
+                </span>
+              );
+            }
+            return <span key={index}>{part}</span>;
+          })}
+        </p>
+      </div>
+    );
+  }, []);
 
-    return text.split('\n').map((line, index) => {
-      if (line.startsWith('#')) {
-        return <h3 key={index} className="text-lg font-semibold mt-4 mb-2">
-          {formatText(line.replace(/^#+ /, ''))}
-        </h3>;
-      }
+  const renderSection = useCallback((section: AnalysisSection) => {
+    const Icon = sectionIcons[section.icon];
+    const bgColor = {
+      positive: "bg-green-50 dark:bg-green-950",
+      negative: "bg-red-50 dark:bg-red-950",
+      neutral: "bg-blue-50 dark:bg-blue-950",
+    }[section.sentiment || "neutral"];
 
-      if (line.trim().startsWith('*')) {
-        return (
-          <div key={index} className="flex items-start gap-2 mt-2">
-            <div className="mt-1">
-              {line.includes('increase') || line.includes('high') ? 
-                <TrendingUp className="w-4 h-4 text-red-500" /> :
-                <TrendingDown className="w-4 h-4 text-green-500" />
-              }
+    return (
+      <div key={section.title} className={`p-4 rounded-lg ${bgColor} mb-4`}>
+        <div className="flex items-center gap-2 mb-3">
+          <Icon className="w-5 h-5" />
+          <h3 className="text-lg font-semibold">{section.title}</h3>
+        </div>
+        <div className="space-y-1">
+          {section.content.map((point, index) => (
+            <div key={index}>
+              {formatBulletPoint(point.replace(/^\* /, ""))}
             </div>
-            <p className="text-sm">{formatText(line.replace('* ', ''))}</p>
-          </div>
-        );
-      }
+          ))}
+        </div>
+      </div>
+    );
+  }, [formatBulletPoint]);
 
-      return <p key={index} className="mt-2 text-sm text-muted-foreground">
-        {formatText(line)}
-      </p>;
-    });
-  };
+  useEffect(() => {
+    generateAnalysis();
+  }, [generateAnalysis]);
 
   return (
     <Card className="mt-6">
@@ -119,31 +255,46 @@ const TransactionAnalysis: React.FC<TransactionAnalysisProps> = ({ transactions 
           <Button
             onClick={generateAnalysis}
             disabled={isLoading}
+            variant="outline"
             className="ml-4"
           >
-            {isLoading ? 'Analyzing...' : 'Analyze Spending'}
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Analyzing...
+              </>
+            ) : (
+              "Refresh Analysis"
+            )}
           </Button>
         </div>
       </CardHeader>
       <CardContent>
         {error && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
-        <div className="space-y-4">
-          {analysis ? (
-            <div className="prose prose-sm max-w-none">
-              {formatAnalysis(analysis)}
-            </div>
-          ) : (
-            <div className="text-center text-muted-foreground py-8">
-              Click "Analyze Spending" to get personalized insights about your spending habits.
-            </div>
-          )}
-        </div>
+        {isLoading && (
+          <div className="space-y-4 animate-pulse">
+            <Progress value={30} className="w-full" />
+            <div className="h-32 bg-muted rounded-lg" />
+          </div>
+        )}
+
+        {!isLoading && parsedAnalysis.length > 0 && (
+          <div className="space-y-4">{parsedAnalysis.map(renderSection)}</div>
+        )}
+
+        {!isLoading && !error && parsedAnalysis.length === 0 && (
+          <div className="text-center text-muted-foreground py-8">
+            {transactions.length === 0
+              ? "No transactions to analyze."
+              : "No analysis available for the provided transactions."}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

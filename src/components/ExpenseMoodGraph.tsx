@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { PartyPopper, Heart, Circle, Cloud, CloudRain } from 'lucide-react';
+import React, { useMemo } from "react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { PartyPopper, Heart, Circle, Cloud, CloudRain } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -10,9 +10,9 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
-} from 'recharts';
+} from "recharts";
 
-type MoodType = 'rad' | 'good' | 'meh' | 'bad' | 'awful';
+type Mood = "excited" | "happy" | "neutral" | "unhappy" | "regret";
 
 interface Transaction {
   id: string;
@@ -20,7 +20,8 @@ interface Transaction {
   title: string;
   description: string;
   amount: number;
-  mood: MoodType;
+  mood: Mood;
+  timestamp?: number;
 }
 
 interface ChartDataPoint {
@@ -42,20 +43,28 @@ interface ExpenseMoodGraphProps {
   transactions: Transaction[];
 }
 
-const moodIcons: Record<MoodType, JSX.Element> = {
-  rad: <PartyPopper className="w-4 h-4 text-green-500" />,
-  good: <Heart className="w-4 h-4 text-blue-500" />,
-  meh: <Circle className="w-4 h-4 text-yellow-500" />,
-  bad: <Cloud className="w-4 h-4 text-orange-500" />,
-  awful: <CloudRain className="w-4 h-4 text-red-500" />
+const moodIcons: Record<Mood, JSX.Element> = {
+  excited: <PartyPopper className="w-4 h-4 text-green-500" />,
+  happy: <Heart className="w-4 h-4 text-blue-500" />,
+  neutral: <Circle className="w-4 h-4 text-yellow-500" />,
+  unhappy: <Cloud className="w-4 h-4 text-orange-500" />,
+  regret: <CloudRain className="w-4 h-4 text-red-500" />,
 };
 
-const moodScores: Record<MoodType, number> = {
-  rad: 5,
-  good: 4,
-  meh: 3,
-  bad: 2,
-  awful: 1
+const moodScores: Record<Mood, number> = {
+  excited: 5,
+  happy: 4,
+  neutral: 3,
+  unhappy: 2,
+  regret: 1,
+};
+
+const moodWeights: Record<Mood, number> = {
+  excited: 1.2,
+  happy: 1.1,
+  neutral: 1.0,
+  unhappy: 0.9,
+  regret: 0.8,
 };
 
 const CustomTooltip: React.FC<TooltipProps> = ({ active, payload, label }) => {
@@ -63,12 +72,14 @@ const CustomTooltip: React.FC<TooltipProps> = ({ active, payload, label }) => {
 
   const data = payload[0].payload;
   const avgMoodScore = data.moodScore;
-  const dominantMood = Object.entries(moodScores)
-    .reduce((closest, [mood, score]) => {
+  const dominantMood = Object.entries(moodScores).reduce(
+    (closest, [mood, score]) => {
       return Math.abs(score - avgMoodScore) < Math.abs(score - closest.score)
-        ? { mood: mood as MoodType, score }
+        ? { mood: mood as Mood, score }
         : closest;
-    }, { mood: 'meh' as MoodType, score: 3 }).mood;
+    },
+    { mood: "neutral" as Mood, score: 3 }
+  ).mood;
 
   return (
     <div className="bg-white p-4 rounded-lg shadow-lg border">
@@ -84,33 +95,72 @@ const CustomTooltip: React.FC<TooltipProps> = ({ active, payload, label }) => {
   );
 };
 
-const ExpenseMoodGraph: React.FC<ExpenseMoodGraphProps> = ({ transactions }) => {
+const ExpenseMoodGraph: React.FC<ExpenseMoodGraphProps> = ({
+  transactions,
+}) => {
   const chartData = useMemo(() => {
-    const grouped = transactions.reduce<Record<string, ChartDataPoint>>((acc, transaction) => {
-      const date = new Date(transaction.date).toLocaleDateString();
-      if (!acc[date]) {
-        acc[date] = {
-          date,
-          amount: 0,
-          transactions: [],
-          moodScore: 0
-        };
-      }
-      acc[date].amount += transaction.amount;
-      acc[date].transactions.push(transaction);
-      acc[date].moodScore = acc[date].transactions.reduce(
-        (sum, t) => sum + moodScores[t.mood], 0
-      ) / acc[date].transactions.length;
-      return acc;
-    }, {});
+    const moodScoreLog: Record<Mood, number> = {
+      excited: 0,
+      happy: 0,
+      neutral: 0,
+      unhappy: 0,
+      regret: 0,
+    };
 
-    return Object.values(grouped).sort((a, b) => 
-      new Date(a.date).getTime() - new Date(b.date).getTime()
+    const grouped = transactions.reduce<Record<string, ChartDataPoint>>(
+      (acc, transaction) => {
+        const date = new Date(transaction.date).toLocaleDateString();
+
+        if (!acc[date]) {
+          acc[date] = {
+            date,
+            amount: 0,
+            transactions: [],
+            moodScore: 0,
+          };
+        }
+
+        acc[date].amount += transaction.amount;
+        acc[date].transactions.push(transaction);
+
+        const sortedTransactions = [...acc[date].transactions].sort((a, b) => {
+          const aTime = a.timestamp || new Date(a.date).getTime();
+          const bTime = b.timestamp || new Date(b.date).getTime();
+          return bTime - aTime;
+        });
+
+        const totalWeight = sortedTransactions.reduce((sum, _, index) => {
+          return sum + Math.exp(-index * 0.2);
+        }, 0);
+
+        const weightedMoodScore =
+          sortedTransactions.reduce((sum, t, index) => {
+            const recencyWeight = Math.exp(-index * 0.2);
+            const moodWeight = moodWeights[t.mood];
+            const baseScore = moodScores[t.mood];
+
+            moodScoreLog[t.mood] += baseScore * moodWeight * recencyWeight;
+
+            return sum + baseScore * moodWeight * recencyWeight;
+          }, 0) / totalWeight;
+
+        acc[date].moodScore = Math.max(1, Math.min(5, weightedMoodScore));
+        return acc;
+      },
+      {}
+    );
+
+    console.log("Total Mood Scores:", moodScoreLog);
+
+    return Object.values(grouped).sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );
   }, [transactions]);
 
   const averageSpending = useMemo(() => {
-    return chartData.reduce((sum, day) => sum + day.amount, 0) / chartData.length;
+    return (
+      chartData.reduce((sum, day) => sum + day.amount, 0) / chartData.length
+    );
   }, [chartData]);
 
   interface DotProps {
@@ -124,17 +174,19 @@ const ExpenseMoodGraph: React.FC<ExpenseMoodGraphProps> = ({ transactions }) => 
   const renderCustomDot = (props: DotProps) => {
     const { cx, cy, payload } = props;
     const avgMoodScore = payload.moodScore;
-    const dominantMood = Object.entries(moodScores)
-      .reduce((closest, [mood, score]) => {
+    const dominantMood = Object.entries(moodScores).reduce(
+      (closest, [mood, score]) => {
         return Math.abs(score - avgMoodScore) < Math.abs(score - closest.score)
-          ? { mood: mood as MoodType, score }
+          ? { mood: mood as Mood, score }
           : closest;
-      }, { mood: 'meh' as MoodType, score: 3 }).mood;
+      },
+      { mood: "neutral" as Mood, score: 3 }
+    ).mood;
 
     return (
       <g transform={`translate(${cx - 8},${cy - 8})`}>
         {React.cloneElement(moodIcons[dominantMood], {
-          className: `w-4 h-4 ${moodIcons[dominantMood].props.className}`
+          className: `w-4 h-4 ${moodIcons[dominantMood].props.className}`,
         })}
       </g>
     );
@@ -156,7 +208,12 @@ const ExpenseMoodGraph: React.FC<ExpenseMoodGraphProps> = ({ transactions }) => 
               <XAxis
                 dataKey="date"
                 tick={{ fontSize: 12 }}
-                tickFormatter={(date: string) => new Date(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                tickFormatter={(date: string) =>
+                  new Date(date).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                  })
+                }
               />
               <YAxis
                 tick={{ fontSize: 12 }}

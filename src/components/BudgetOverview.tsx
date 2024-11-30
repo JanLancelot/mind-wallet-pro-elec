@@ -1,10 +1,10 @@
-import { useBudget } from "./BudgetContext"
-import { useAuth } from "@/useAuth"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useState } from "react"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { useBudget } from "./BudgetContext";
+import { useAuth } from "@/useAuth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useState } from "react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 function LoadingSkeleton() {
   return (
@@ -32,42 +32,60 @@ function LoadingSkeleton() {
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }
 
 export function BudgetOverview() {
-  const { user } = useAuth()
-  const { budget, setBudget, remainingBudget, isLoading } = useBudget()
-  const [newBudget, setNewBudget] = useState("")
+  const { user } = useAuth();
+  const {
+    totalBudget,
+    setTotalBudget,
+    remainingBudget,
+    addToSavings,
+    isLoading,
+    savings,
+  } = useBudget();
+  const [newBudget, setNewBudget] = useState("");
 
   const handleSetBudget = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const budgetAmount = parseFloat(newBudget)
+    e.preventDefault();
+    const budgetAmount = parseFloat(newBudget);
     if (isNaN(budgetAmount) || budgetAmount <= 0) {
-      alert("Please enter a valid budget amount")
-      return
+      alert("Please enter a valid budget amount");
+      return;
     }
     try {
-      await setBudget(budgetAmount)
-      setNewBudget("")
+      await setTotalBudget(budgetAmount);
+      setNewBudget("");
     } catch (err) {
-      console.error("Budget update error:", err)
-      alert("Failed to update budget. Please try again.")
+      console.error("Budget update error:", err);
+      alert("Failed to update budget. Please try again.");
     }
-  }
+  };
+
+  const handleAddToSavings = async () => {
+    try {
+      await addToSavings();
+    } catch (err) {
+      console.error("Add to savings error:", err);
+      alert("Failed to add to savings. Please try again.");
+    }
+  };
 
   if (!user) {
     return (
       <Card>
         <CardContent className="p-6">
-          <p className="text-center">Please log in to view and manage your budget.</p>
+          <p className="text-center">
+            Please log in to view and manage your budget.
+          </p>
         </CardContent>
       </Card>
-    )
+    );
   }
 
   if (isLoading) {
-    return <LoadingSkeleton />
+    return <LoadingSkeleton />;
   }
 
   return (
@@ -79,11 +97,33 @@ export function BudgetOverview() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <p className="text-sm font-medium">Total Budget</p>
-            <p className="text-2xl font-bold">${budget.toFixed(2)}</p>
+            <p className="text-2xl font-bold">
+              ₱
+              {totalBudget.toLocaleString("en-PH", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </p>
           </div>
           <div>
             <p className="text-sm font-medium">Remaining Budget</p>
-            <p className="text-2xl font-bold">${remainingBudget.toFixed(2)}</p>
+            <p className="text-2xl font-bold">
+              ₱
+              {remainingBudget.toLocaleString("en-PH", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm font-medium">Total Savings</p>
+            <p className="text-2xl font-bold">
+              ₱
+              {savings.toLocaleString("en-PH", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </p>
           </div>
         </div>
         <form onSubmit={handleSetBudget} className="space-y-2">
@@ -101,7 +141,8 @@ export function BudgetOverview() {
             <Button type="submit">Set Budget</Button>
           </div>
         </form>
+        <Button onClick={handleAddToSavings}>Add to Savings</Button>
       </CardContent>
     </Card>
-  )
+  );
 }

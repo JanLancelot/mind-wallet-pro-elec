@@ -5,6 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Send, Search, Plus } from "lucide-react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { useBudget } from "./BudgetContext";
 
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_API_KEY!);
 
@@ -23,24 +24,19 @@ type Conversation = {
 };
 
 export function DesktopChatInterface() {
+  const {
+    transactions,
+    totalBudget,
+    remainingBudget,
+    savings,
+    isLoading: budgetLoading,
+  } = useBudget();
   const [conversations, setConversations] = useState<Conversation[]>([
     {
       id: 1,
       name: "Financial Advice",
       lastMessage: "How can we help improve your financial well-being?",
       unreadCount: 0,
-    },
-    {
-      id: 2,
-      name: "Debt Counseling",
-      lastMessage: "Let's discuss strategies for managing debt.",
-      unreadCount: 1,
-    },
-    {
-      id: 3,
-      name: "Savings and Budgeting",
-      lastMessage: "How's your savings plan going?",
-      unreadCount: 2,
     },
   ]);
 
@@ -59,13 +55,39 @@ export function DesktopChatInterface() {
   const generateGeminiResponse = async (userMessage: string) => {
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-002" });
 
+    const userData = {
+      totalBudget,
+      remainingBudget,
+      savings,
+      transactions: transactions.map((t) => ({
+        date: new Date(t.date).toLocaleDateString(),
+        amount: t.amount,
+        title: t.title,
+        mood: t.mood,
+        description: t.description,
+      })),
+      moodPatterns: transactions.reduce<Record<string, number>>(
+        (acc, t) => {
+          acc[t.mood] = (acc[t.mood] || 0) + t.amount;
+          return acc;
+        },
+        {}
+      ),
+    };
+
     const systemPrompt = `You are a mindful financial advisor who combines practical financial guidance with mindfulness practices. For each response:
-  Acknowledge the financial concern,
-  Offer relevant financial advice,
-  Include a brief mindfulness technique or practice that can help with the specific financial situation,
-  Keep the tone compassionate and supportive,
-  
-  Remember to suggest breathing exercises, meditation, or mindful awareness practices that can help reduce financial stress and support better financial decision-making. Format your answer proerly for readability.`;
+      Acknowledge the financial concern,
+      Offer relevant financial advice based on the user's financial data,
+      Include a brief mindfulness technique or practice that can help with the specific financial situation,
+      Keep the tone compassionate and supportive,
+      
+      Remember to suggest breathing exercises, meditation, or mindful awareness practices that can help reduce financial stress and support better financial decision-making. Format your answer properly for readability.
+      
+      User Financial Data:
+      ${JSON.stringify(userData)}
+      
+      Note: All monetary values are in Philippine Peso (PHP).
+    `;
 
     const prompt = `${systemPrompt}\n\nUser message: ${userMessage}`;
     const result = await model.generateContent(prompt);
@@ -151,6 +173,14 @@ export function DesktopChatInterface() {
       .join("");
   };
 
+  if (budgetLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <p>Loading financial data...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-white dark:bg-zinc-950">
       <div className="w-80 border-r flex flex-col">
@@ -192,7 +222,7 @@ export function DesktopChatInterface() {
             <Plus className="w-4 h-4 mr-2" />
             New Chat
           </Button>
-        </div>
+          </div>
       </div>
 
       <div className="flex-1 flex flex-col h-screen">

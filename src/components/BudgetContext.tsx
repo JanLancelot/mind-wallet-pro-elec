@@ -1,4 +1,9 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+} from "react";
 import { db } from "@/config/firebase";
 import {
   collection,
@@ -16,6 +21,9 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 import { useAuth } from "@/useAuth";
+import { useNotification } from "./NotificationContext";
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 type Mood = "excited" | "happy" | "neutral" | "unhappy" | "regret";
 
@@ -43,6 +51,7 @@ type BudgetContextType = {
   setTotalBudget: (amount: number) => Promise<void>;
   remainingBudget: number;
   addToSavings: () => Promise<void>;
+  transferFromSavings: (amount: number) => Promise<void>;
   savings: number;
   isLoading: boolean;
   updateTransaction: (
@@ -50,6 +59,11 @@ type BudgetContextType = {
     transaction: Partial<Transaction>
   ) => Promise<void>;
   deleteTransaction: (id: string, amount: number) => Promise<void>;
+};
+
+type UserData = {
+  savings: number;
+  lastBudgetReset?: string;
 };
 
 const BudgetContext = createContext<BudgetContextType | undefined>(undefined);
@@ -66,11 +80,52 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const { user } = useAuth();
+  const { addNotification } = useNotification();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [totalBudget, setTotalBudget] = useState(0);
   const [remainingBudget, setRemainingBudget] = useState(0);
   const [savings, setSavings] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [budgetLoaded, setBudgetLoaded] = useState(false);
+
+  const checkAndResetMonthlyBudget = async () => {
+    if (!user?.uid || !budgetLoaded) return;
+
+    const userDocRef = doc(db, "users", user.uid);
+    const userDocSnap = await getDoc(userDocRef);
+    const userData = userDocSnap.data() as UserData;
+
+    const lastReset = userData.lastBudgetReset
+      ? new Date(userData.lastBudgetReset)
+      : new Date(0);
+    const now = new Date();
+
+    if (
+      lastReset.getMonth() !== now.getMonth() ||
+      lastReset.getFullYear() !== now.getFullYear()
+    ) {
+      await addToSavings();
+
+      await updateBudget({
+        totalBudget: 0,
+        remainingBudget: 0,
+      });
+      setTotalBudget(0);
+      setRemainingBudget(0);
+
+      await setDoc(
+        userDocRef,
+        {
+          lastBudgetReset: now.toISOString(),
+        },
+        { merge: true }
+      );
+
+      addNotification(
+        "Your monthly budget has been reset and remaining funds were transferred to savings.",
+      );
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -82,7 +137,7 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({
       try {
         setIsLoading(true);
 
-        const budgetRef = collection(db, "users", user.uid, "budget");
+        const budgetRef = collection(db, "users", user?.uid, "budget");
         const budgetDoc = await getDocs(budgetRef);
 
         if (!budgetDoc.empty) {
@@ -119,8 +174,10 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({
         } else {
           setSavings(0);
         }
+        setBudgetLoaded(true);
       } catch (error) {
         console.error("Error fetching budget data:", error);
+        toast.error("Failed to fetch budget data. Please try again.");
       } finally {
         setIsLoading(false);
       }
@@ -128,6 +185,10 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({
 
     fetchData();
   }, [user?.uid]);
+
+  useEffect(() => {
+    checkAndResetMonthlyBudget();
+  }, [budgetLoaded, user?.uid]);
 
   const addTransaction = async (
     transaction: Omit<Transaction, "id" | "userId">
@@ -137,7 +198,7 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({
     }
 
     if (transaction.amount > remainingBudget) {
-      alert("Transaction amount exceeds remaining budget!");
+      toast.warn("Transaction amount exceeds remaining budget!");
       return;
     }
 
@@ -146,22 +207,28 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({
       userId: user.uid,
     };
 
-    const docRef = await addDoc(
-      collection(db, "transactions"),
-      transactionWithUser
-    );
-    const newTransaction: Transaction = {
-      ...transactionWithUser,
-      id: docRef.id,
-    };
-    setTransactions((prevTransactions) => [
-      newTransaction,
-      ...prevTransactions,
-    ]);
+    try {
+      const docRef = await addDoc(
+        collection(db, "transactions"),
+        transactionWithUser
+      );
+      const newTransaction: Transaction = {
+        ...transactionWithUser,
+        id: docRef.id,
+      };
+      setTransactions((prevTransactions) => [
+        newTransaction,
+        ...prevTransactions,
+      ]);
 
-    const newRemainingBudget = remainingBudget - transaction.amount;
-    await updateBudget({ remainingBudget: newRemainingBudget });
-    setRemainingBudget(newRemainingBudget);
+      const newRemainingBudget = remainingBudget - transaction.amount;
+      await updateBudget({ remainingBudget: newRemainingBudget });
+      setRemainingBudget(newRemainingBudget);
+      toast.success("Transaction added successfully!");
+    } catch (error) {
+      console.error("Error adding transaction:", error);
+      toast.error("Failed to add transaction. Please try again.");
+    }
   };
 
   const updateTransaction = async (
@@ -185,7 +252,7 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({
         (updatedFields.amount || oldTransaction.amount) - oldTransaction.amount;
 
       if (amountDifference > remainingBudget) {
-        alert("New transaction amount exceeds remaining budget!");
+        toast.warn("New transaction amount exceeds remaining budget!");
         return;
       }
 
@@ -200,41 +267,43 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({
 
       setTransactions((prev) =>
         prev.map((t) => (t.id === id ? { ...t, ...updatedFields } : t))
-      );
-    } catch (error) {
-      console.error("Error updating transaction:", error);
-      alert("Failed to update transaction. Please try again.");
-    }
-  };
+    );
+    toast.success("Transaction updated successfully!");
+  } catch (error) {
+    console.error("Error updating transaction:", error);
+    toast.error("Failed to update transaction. Please try again.");
+  }
+};
 
-  const deleteTransaction = async (id: string, amount: number) => {
-    if (!user?.uid) {
-      throw new Error("User must be logged in to delete transactions");
-    }
+const deleteTransaction = async (id: string, amount: number) => {
+  if (!user?.uid) {
+    throw new Error("User must be logged in to delete transactions");
+  }
+  try {
+    const transactionRef = doc(db, "transactions", id);
+    await deleteDoc(transactionRef);
 
-    try {
-      const transactionRef = doc(db, "transactions", id);
-      await deleteDoc(transactionRef);
+    const newRemainingBudget = remainingBudget + amount;
+    await updateBudget({ remainingBudget: newRemainingBudget });
+    setRemainingBudget(newRemainingBudget);
 
-      const newRemainingBudget = remainingBudget + amount;
-      await updateBudget({ remainingBudget: newRemainingBudget });
-      setRemainingBudget(newRemainingBudget);
+    setTransactions((prev) => prev.filter((t) => t.id !== id));
+    toast.success("Transaction deleted successfully!");
+  } catch (error) {
+    console.error("Error deleting transaction:", error);
+    toast.error("Failed to delete transaction. Please try again.");
+  }
+};
 
-      setTransactions((prev) => prev.filter((t) => t.id !== id));
-    } catch (error) {
-      console.error("Error deleting transaction:", error);
-      alert("Failed to delete transaction. Please try again.");
-    }
-  };
+const updateBudget = async (budgetData: Partial<BudgetData>) => {
+  if (!user?.uid) {
+    throw new Error("User must be logged in to update budget");
+  }
 
-  const updateBudget = async (budgetData: Partial<BudgetData>) => {
-    if (!user?.uid) {
-      throw new Error("User must be logged in to update budget");
-    }
+  const budgetRef = collection(db, "users", user.uid, "budget");
+  const budgetDocs = await getDocs(budgetRef);
 
-    const budgetRef = collection(db, "users", user.uid, "budget");
-    const budgetDocs = await getDocs(budgetRef);
-
+  try {
     if (budgetDocs.empty) {
       await addDoc(budgetRef, {
         ...budgetData,
@@ -255,72 +324,127 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({
       if (budgetData.remainingBudget !== undefined)
         setRemainingBudget(budgetData.remainingBudget);
     }
-  };
+  } catch (error) {
+    console.error("Error updating budget:", error);
+    toast.error("Failed to update budget. Please try again.");
+  }
+};
 
-  const setTotalBudgetAmount = async (amount: number) => {
-    try {
-      await updateBudget({ totalBudget: amount, remainingBudget: amount });
-      setTotalBudget(amount);
-      setRemainingBudget(amount);
-    } catch (error) {
-      console.error("Error setting total budget:", error);
-      alert("Failed to update total budget. Please try again.");
-    }
-  };
+const setTotalBudgetAmount = async (amount: number) => {
+  try {
+    await updateBudget({ totalBudget: amount, remainingBudget: amount });
+    setTotalBudget(amount);
+    setRemainingBudget(amount);
+    toast.success("Total budget updated successfully!");
+  } catch (error) {
+    console.error("Error setting total budget:", error);
+    toast.error("Failed to update total budget. Please try again.");
+  }
+};
 
-  const addToSavings = async () => {
-    if (!user?.uid) {
-      throw new Error("User must be logged in to add to savings");
-    }
+const addToSavings = async () => {
+  if (!user?.uid) {
+    throw new Error("User must be logged in to add to savings");
+  }
 
-    try {
-      await addDoc(collection(db, "transactions"), {
-        userId: user.uid,
-        title: "Transfer to Savings",
-        description: "Remaining budget transferred to savings",
-        amount: remainingBudget,
-        date: new Date().toISOString(),
-        mood: "neutral",
-      });
+  try {
+    await addDoc(collection(db, "transactions"), {
+      userId: user.uid,
+      title: "Transfer to Savings",
+      description: "Remaining budget transferred to savings",
+      amount: remainingBudget,
+      date: new Date().toISOString(),
+      mood: "neutral",
+    });
 
-      await updateBudget({ remainingBudget: 0 });
-      const currentRemainingBudget = remainingBudget;
-      setRemainingBudget(0);
+    await updateBudget({ remainingBudget: 0 });
+    const currentRemainingBudget = remainingBudget;
+    setRemainingBudget(0);
 
-      const savingsRef = doc(db, "users", user.uid);
-      await setDoc(
-        savingsRef,
-        {
-          savings: increment(currentRemainingBudget),
-        },
-        { merge: true }
-      );
+    const savingsRef = doc(db, "users", user.uid);
+    await setDoc(
+      savingsRef,
+      {
+        savings: increment(currentRemainingBudget),
+      },
+      { merge: true }
+    );
 
-      setSavings((prevSavings) => prevSavings + currentRemainingBudget);
+    setSavings((prevSavings) => prevSavings + currentRemainingBudget);
 
-      alert("Remaining budget added to savings!");
-    } catch (error) {
-      console.error("Error adding to savings:", error);
-      alert("Failed to add to savings. Please try again.");
-    }
-  };
+    toast.success("Remaining budget added to savings!");
+  } catch (error) {
+    console.error("Error adding to savings:", error);
+    toast.error("Failed to add to savings. Please try again.");
+  }
+};
 
-  return (
-    <BudgetContext.Provider
-      value={{
-        transactions,
-        addTransaction,
-        totalBudget,
-        setTotalBudget: setTotalBudgetAmount,
-        remainingBudget,
-        addToSavings,
-        savings,
-        isLoading,
-        updateTransaction,
-        deleteTransaction,
-      }}
-    >
-      {children}
-    </BudgetContext.Provider>
-  );
+const transferFromSavings = async (amount: number) => {
+  if (!user?.uid) {
+    throw new Error("User must be logged in to transfer from savings");
+  }
+  if (amount <= 0) {
+    toast.warn("Please enter a valid amount to transfer.");
+    return;
+  }
+  if (amount > savings) {
+    toast.warn("Transfer amount exceeds savings!");
+    return;
+  }
+
+  try {
+    await addDoc(collection(db, "transactions"), {
+      userId: user.uid,
+      title: "Transfer from Savings",
+      description: "Funds transferred from savings to budget",
+      amount: amount,
+      date: new Date().toISOString(),
+      mood: "neutral",
+    });
+
+    const newRemainingBudget = remainingBudget + amount;
+    await updateBudget({
+      totalBudget: totalBudget + amount,
+      remainingBudget: newRemainingBudget,
+    });
+    setTotalBudget((prevTotal) => prevTotal + amount);
+    setRemainingBudget(newRemainingBudget);
+
+    const savingsRef = doc(db, "users", user.uid);
+    await setDoc(
+      savingsRef,
+      {
+        savings: increment(-amount),
+      },
+      { merge: true }
+    );
+
+    setSavings((prevSavings) => prevSavings - amount);
+
+    toast.success("Funds transferred from savings to budget!");
+  } catch (error) {
+    console.error("Error transferring from savings:", error);
+    toast.error("Failed to transfer from savings. Please try again.");
+  }
+};
+
+return (
+  <BudgetContext.Provider
+    value={{
+      transactions,
+      addTransaction,
+      totalBudget,
+      setTotalBudget: setTotalBudgetAmount,
+      remainingBudget,
+      addToSavings,
+      transferFromSavings,
+      savings,
+      isLoading,
+      updateTransaction,
+      deleteTransaction,
+    }}
+  >
+    {children}
+  </BudgetContext.Provider>
+);
 };

@@ -3,6 +3,7 @@ import { BudgetProvider } from "@/components/BudgetContext";
 import { TransactionForm } from "@/components/TransactionForm";
 import { TransactionList } from "@/components/TransactionList";
 import { BudgetOverview } from "@/components/BudgetOverview";
+import { ToastContainer } from 'react-toastify';
 
 function Home() {
   return (
@@ -17,6 +18,7 @@ function Home() {
           </div>
           <TransactionList />
         </div>
+        <ToastContainer />
       </BudgetProvider>
     </div>
   );

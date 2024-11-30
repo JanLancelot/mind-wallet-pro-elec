@@ -5,6 +5,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 function LoadingSkeleton() {
   return (
@@ -42,10 +53,13 @@ export function BudgetOverview() {
     setTotalBudget,
     remainingBudget,
     addToSavings,
+    transferFromSavings,
     isLoading,
     savings,
   } = useBudget();
   const [newBudget, setNewBudget] = useState("");
+  const [transferAmount, setTransferAmount] = useState("");
+  const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
 
   const handleSetBudget = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +83,22 @@ export function BudgetOverview() {
     } catch (err) {
       console.error("Add to savings error:", err);
       alert("Failed to add to savings. Please try again.");
+    }
+  };
+
+  const handleTransferFromSavings = async () => {
+    const amount = parseFloat(transferAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.warn("Please enter a valid amount to transfer.");
+      return;
+    }
+    try {
+      await transferFromSavings(amount);
+      setTransferAmount("");
+      setIsTransferDialogOpen(false);
+    } catch (err) {
+      console.error("Transfer from savings error:", err);
+      toast.error("Failed to transfer from savings. Please try again.");
     }
   };
 
@@ -141,7 +171,37 @@ export function BudgetOverview() {
             <Button type="submit">Set Budget</Button>
           </div>
         </form>
-        <Button onClick={handleAddToSavings}>Add to Savings</Button>
+        <div className="flex space-x-2">
+          <Button onClick={handleAddToSavings}>Add to Savings</Button>
+          <Dialog open={isTransferDialogOpen} onOpenChange={setIsTransferDialogOpen}>
+            <DialogTrigger asChild>
+              <Button type="button">Transfer from Savings</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Transfer from Savings</DialogTitle>
+                <DialogDescription>
+                  Enter the amount you want to transfer from your savings to your
+                  budget.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <Input
+                  type="number"
+                  value={transferAmount}
+                  onChange={(e) => setTransferAmount(e.target.value)}
+                  min="0.01"
+                  step="0.01"
+                />
+              </div>
+              <DialogFooter>
+                <Button onClick={handleTransferFromSavings}>
+                  Transfer
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </CardContent>
     </Card>
   );

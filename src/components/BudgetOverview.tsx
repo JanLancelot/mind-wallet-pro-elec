@@ -1,9 +1,9 @@
+import React, { useState } from "react";
 import { useBudget } from "./BudgetContext";
 import { useAuth } from "@/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
   Dialog,
@@ -61,11 +61,11 @@ export function BudgetOverview() {
   const [transferAmount, setTransferAmount] = useState("");
   const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
 
-  const handleSetBudget = async (e: React.FormEvent) => {
+  const handleSetBudget = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const budgetAmount = parseFloat(newBudget);
     if (isNaN(budgetAmount) || budgetAmount <= 0) {
-      alert("Please enter a valid budget amount");
+      alert("Please enter a valid budget amount"); 
       return;
     }
     try {
@@ -78,11 +78,15 @@ export function BudgetOverview() {
   };
 
   const handleAddToSavings = async () => {
+    if (remainingBudget <= 0) {
+      toast.info("You have no remaining budget to add to savings.");
+      return;
+    }
     try {
       await addToSavings();
     } catch (err) {
       console.error("Add to savings error:", err);
-      alert("Failed to add to savings. Please try again.");
+      toast.error("Failed to add to savings. Please try again.");
     }
   };
 
@@ -168,14 +172,20 @@ export function BudgetOverview() {
               step="0.01"
               className="flex-grow"
             />
-            <Button type="submit">Set Budget</Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? "Setting Budget..." : "Set Budget"}
+            </Button>
           </div>
         </form>
         <div className="flex space-x-2">
-          <Button onClick={handleAddToSavings}>Add to Savings</Button>
+          <Button onClick={handleAddToSavings} disabled={isLoading}>
+            {isLoading ? "Saving..." : "Add to Savings"}
+          </Button>
           <Dialog open={isTransferDialogOpen} onOpenChange={setIsTransferDialogOpen}>
             <DialogTrigger asChild>
-              <Button type="button">Transfer from Savings</Button>
+              <Button type="button" disabled={isLoading}>
+                Transfer from Savings
+              </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
@@ -195,8 +205,8 @@ export function BudgetOverview() {
                 />
               </div>
               <DialogFooter>
-                <Button onClick={handleTransferFromSavings}>
-                  Transfer
+                <Button onClick={handleTransferFromSavings} disabled={isLoading}>
+                  {isLoading ? "Transferring..." : "Transfer"}
                 </Button>
               </DialogFooter>
             </DialogContent>

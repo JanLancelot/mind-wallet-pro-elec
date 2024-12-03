@@ -53,7 +53,8 @@ type BudgetContextType = {
   addToSavings: () => Promise<void>;
   transferFromSavings: (amount: number) => Promise<void>;
   savings: number;
-  isLoading: boolean;
+  isLoading: boolean; 
+  setIsLoading: (loading: boolean) => void;
   updateTransaction: (
     id: string,
     transaction: Partial<Transaction>
@@ -87,6 +88,7 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({
   const [savings, setSavings] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [budgetLoaded, setBudgetLoaded] = useState(false);
+  
 
   const checkAndResetMonthlyBudget = async () => {
     if (!user?.uid || !budgetLoaded) return;
@@ -193,12 +195,14 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({
   const addTransaction = async (
     transaction: Omit<Transaction, "id" | "userId">
   ) => {
+    setIsLoading(true); 
     if (!user?.uid) {
       throw new Error("User must be logged in to add transactions");
     }
 
     if (transaction.amount > remainingBudget) {
       toast.warn("Transaction amount exceeds remaining budget!");
+      setIsLoading(false); 
       return;
     }
 
@@ -228,6 +232,8 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({
     } catch (error) {
       console.error("Error adding transaction:", error);
       toast.error("Failed to add transaction. Please try again.");
+    } finally {
+      setIsLoading(false); 
     }
   };
 
@@ -235,6 +241,7 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({
     id: string,
     updatedFields: Partial<Transaction>
   ) => {
+    setIsLoading(true);
     if (!user?.uid) {
       throw new Error("User must be logged in to update transactions");
     }
@@ -267,184 +274,204 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({
 
       setTransactions((prev) =>
         prev.map((t) => (t.id === id ? { ...t, ...updatedFields } : t))
-    );
-    toast.success("Transaction updated successfully!");
-  } catch (error) {
-    console.error("Error updating transaction:", error);
-    toast.error("Failed to update transaction. Please try again.");
-  }
-};
-
-const deleteTransaction = async (id: string, amount: number) => {
-  if (!user?.uid) {
-    throw new Error("User must be logged in to delete transactions");
-  }
-  try {
-    const transactionRef = doc(db, "transactions", id);
-    await deleteDoc(transactionRef);
-
-    const newRemainingBudget = remainingBudget + amount;
-    await updateBudget({ remainingBudget: newRemainingBudget });
-    setRemainingBudget(newRemainingBudget);
-
-    setTransactions((prev) => prev.filter((t) => t.id !== id));
-    toast.success("Transaction deleted successfully!");
-  } catch (error) {
-    console.error("Error deleting transaction:", error);
-    toast.error("Failed to delete transaction. Please try again.");
-  }
-};
-
-const updateBudget = async (budgetData: Partial<BudgetData>) => {
-  if (!user?.uid) {
-    throw new Error("User must be logged in to update budget");
-  }
-
-  const budgetRef = collection(db, "users", user.uid, "budget");
-  const budgetDocs = await getDocs(budgetRef);
-
-  try {
-    if (budgetDocs.empty) {
-      await addDoc(budgetRef, {
-        ...budgetData,
-        updatedAt: serverTimestamp(),
-      });
-      if (budgetData.totalBudget !== undefined)
-        setTotalBudget(budgetData.totalBudget);
-      if (budgetData.remainingBudget !== undefined)
-        setRemainingBudget(budgetData.remainingBudget);
-    } else {
-      const budgetDoc = budgetDocs.docs[0];
-      await updateDoc(doc(budgetRef, budgetDoc.id), {
-        ...budgetData,
-        updatedAt: serverTimestamp(),
-      });
-      if (budgetData.totalBudget !== undefined)
-        setTotalBudget(budgetData.totalBudget);
-      if (budgetData.remainingBudget !== undefined)
-        setRemainingBudget(budgetData.remainingBudget);
+      );
+      toast.success("Transaction updated successfully!");
+    } catch (error) {
+      console.error("Error updating transaction:", error);
+      toast.error("Failed to update transaction. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
-  } catch (error) {
-    console.error("Error updating budget:", error);
-    toast.error("Failed to update budget. Please try again.");
-  }
-};
+  };
 
-const setTotalBudgetAmount = async (amount: number) => {
-  try {
-    await updateBudget({ totalBudget: amount, remainingBudget: amount });
-    setTotalBudget(amount);
-    setRemainingBudget(amount);
-    toast.success("Total budget updated successfully!");
-  } catch (error) {
-    console.error("Error setting total budget:", error);
-    toast.error("Failed to update total budget. Please try again.");
-  }
-};
+  const deleteTransaction = async (id: string, amount: number) => {
+    setIsLoading(true); 
+    if (!user?.uid) {
+      throw new Error("User must be logged in to delete transactions");
+    }
+    try {
+      const transactionRef = doc(db, "transactions", id);
+      await deleteDoc(transactionRef);
 
-const addToSavings = async () => {
-  if (!user?.uid) {
-    throw new Error("User must be logged in to add to savings");
-  }
+      const newRemainingBudget = remainingBudget + amount;
+      await updateBudget({ remainingBudget: newRemainingBudget });
+      setRemainingBudget(newRemainingBudget);
 
-  try {
-    await addDoc(collection(db, "transactions"), {
-      userId: user.uid,
-      title: "Transfer to Savings",
-      description: "Remaining budget transferred to savings",
-      amount: remainingBudget,
-      date: new Date().toISOString(),
-      mood: "neutral",
-    });
+      setTransactions((prev) => prev.filter((t) => t.id !== id));
+      toast.success("Transaction deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting transaction:", error);
+      toast.error("Failed to delete transaction. Please try again.");
+    } finally {
+      setIsLoading(false); 
+    }
+  };
 
-    await updateBudget({ remainingBudget: 0 });
-    const currentRemainingBudget = remainingBudget;
-    setRemainingBudget(0);
+  const updateBudget = async (budgetData: Partial<BudgetData>) => {
+    setIsLoading(true); 
+    if (!user?.uid) {
+      throw new Error("User must be logged in to update budget");
+    }
 
-    const savingsRef = doc(db, "users", user.uid);
-    await setDoc(
-      savingsRef,
-      {
-        savings: increment(currentRemainingBudget),
-      },
-      { merge: true }
-    );
+    const budgetRef = collection(db, "users", user.uid, "budget");
+    const budgetDocs = await getDocs(budgetRef);
 
-    setSavings((prevSavings) => prevSavings + currentRemainingBudget);
+    try {
+      if (budgetDocs.empty) {
+        await addDoc(budgetRef, {
+          ...budgetData,
+          updatedAt: serverTimestamp(),
+        });
+        if (budgetData.totalBudget !== undefined)
+          setTotalBudget(budgetData.totalBudget);
+        if (budgetData.remainingBudget !== undefined)
+          setRemainingBudget(budgetData.remainingBudget);
+      } else {
+        const budgetDoc = budgetDocs.docs[0];
+        await updateDoc(doc(budgetRef, budgetDoc.id), {
+          ...budgetData,
+          updatedAt: serverTimestamp(),
+        });
+        if (budgetData.totalBudget !== undefined)
+          setTotalBudget(budgetData.totalBudget);
+        if (budgetData.remainingBudget !== undefined)
+          setRemainingBudget(budgetData.remainingBudget);
+      }
+    } catch (error) {
+      console.error("Error updating budget:", error);
+      toast.error("Failed to update budget. Please try again.");
+    } finally {
+      setIsLoading(false); 
+    }
+  };
 
-    toast.success("Remaining budget added to savings!");
-  } catch (error) {
-    console.error("Error adding to savings:", error);
-    toast.error("Failed to add to savings. Please try again.");
-  }
-};
+  const setTotalBudgetAmount = async (amount: number) => {
+    setIsLoading(true);
+    try {
+      await updateBudget({ totalBudget: amount, remainingBudget: amount });
+      setTotalBudget(amount);
+      setRemainingBudget(amount);
+      toast.success("Total budget updated successfully!");
+    } catch (error) {
+      console.error("Error setting total budget:", error);
+      toast.error("Failed to update total budget. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-const transferFromSavings = async (amount: number) => {
-  if (!user?.uid) {
-    throw new Error("User must be logged in to transfer from savings");
-  }
-  if (amount <= 0) {
-    toast.warn("Please enter a valid amount to transfer.");
-    return;
-  }
-  if (amount > savings) {
-    toast.warn("Transfer amount exceeds savings!");
-    return;
-  }
+  const addToSavings = async () => {
+    setIsLoading(true);
+    if (!user?.uid) {
+      throw new Error("User must be logged in to add to savings");
+    }
 
-  try {
-    await addDoc(collection(db, "transactions"), {
-      userId: user.uid,
-      title: "Transfer from Savings",
-      description: "Funds transferred from savings to budget",
-      amount: amount,
-      date: new Date().toISOString(),
-      mood: "neutral",
-    });
+    try {
+      await addDoc(collection(db, "transactions"), {
+        userId: user.uid,
+        title: "Transfer to Savings",
+        description: "Remaining budget transferred to savings",
+        amount: remainingBudget,
+        date: new Date().toISOString(),
+        mood: "neutral",
+      });
+    
+      await updateBudget({ remainingBudget: 0 });
+      const currentRemainingBudget = remainingBudget;
+      setRemainingBudget(0);
 
-    const newRemainingBudget = remainingBudget + amount;
-    await updateBudget({
-      totalBudget: totalBudget + amount,
-      remainingBudget: newRemainingBudget,
-    });
-    setTotalBudget((prevTotal) => prevTotal + amount);
-    setRemainingBudget(newRemainingBudget);
+      const savingsRef = doc(db, "users", user.uid);
+      await setDoc(
+        savingsRef,
+        {
+          savings: increment(currentRemainingBudget),
+        },
+        { merge: true }
+      );
 
-    const savingsRef = doc(db, "users", user.uid);
-    await setDoc(
-      savingsRef,
-      {
-        savings: increment(-amount),
-      },
-      { merge: true }
-    );
+      setSavings((prevSavings) => prevSavings + currentRemainingBudget);
 
-    setSavings((prevSavings) => prevSavings - amount);
+      toast.success("Remaining budget added to savings!");
+    } catch (error) {
+      console.error("Error adding to savings:", error);
+      toast.error("Failed to add to savings. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    toast.success("Funds transferred from savings to budget!");
-  } catch (error) {
-    console.error("Error transferring from savings:", error);
-    toast.error("Failed to transfer from savings. Please try again.");
-  }
-};
+  const transferFromSavings = async (amount: number) => {
+    setIsLoading(true);
+    if (!user?.uid) {
+      throw new Error("User must be logged in to transfer from savings");
+    }
+    if (amount <= 0) {
+      toast.warn("Please enter a valid amount to transfer.");
+      setIsLoading(false);
+      return;
+    }
+    if (amount > savings) {
+      toast.warn("Transfer amount exceeds savings!");
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, "transactions"), {
+        userId: user.uid,
+        title: "Transfer from Savings",
+        description: "Funds transferred from savings to budget",
+        amount: amount,
+        date: new Date().toISOString(),
+        mood: "neutral",
+      });
+
+      const newRemainingBudget = remainingBudget + amount;
+      await updateBudget({
+        totalBudget: totalBudget + amount,
+        remainingBudget: newRemainingBudget,
+      });
+      setTotalBudget((prevTotal) => prevTotal + amount);
+      setRemainingBudget(newRemainingBudget);
+
+      const savingsRef = doc(db, "users", user.uid);
+      await setDoc(
+        savingsRef,
+        {
+          savings: increment(-amount),
+        },
+        { merge: true }
+      );
+
+      setSavings((prevSavings) => prevSavings - amount);
+
+      toast.success("Funds transferred from savings to budget!");
+    } catch (error) {
+      console.error("Error transferring from savings:", error);
+      toast.error("Failed to transfer from savings. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
 return (
-  <BudgetContext.Provider
-    value={{
-      transactions,
-      addTransaction,
-      totalBudget,
-      setTotalBudget: setTotalBudgetAmount,
-      remainingBudget,
-      addToSavings,
-      transferFromSavings,
-      savings,
-      isLoading,
-      updateTransaction,
-      deleteTransaction,
-    }}
-  >
-    {children}
-  </BudgetContext.Provider>
+<BudgetContext.Provider
+  value={{
+    transactions,
+    addTransaction,
+    totalBudget,
+    setTotalBudget: setTotalBudgetAmount,
+    remainingBudget,
+    addToSavings,
+    transferFromSavings,
+    savings,
+    isLoading, 
+    setIsLoading,
+    updateTransaction,
+    deleteTransaction,
+  }}
+>
+  {children}
+</BudgetContext.Provider>
 );
 };

@@ -59,13 +59,16 @@ export function BudgetOverview() {
   } = useBudget();
   const [newBudget, setNewBudget] = useState("");
   const [transferAmount, setTransferAmount] = useState("");
-  const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
+  const [isTransferToSavingsDialogOpen, setIsTransferToSavingsDialogOpen] =
+    useState(false);
+  const [isTransferFromSavingsDialogOpen, setIsTransferFromSavingsDialogOpen] =
+    useState(false);
 
   const handleSetBudget = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const budgetAmount = parseFloat(newBudget);
     if (isNaN(budgetAmount) || budgetAmount <= 0) {
-      alert("Please enter a valid budget amount"); 
+      alert("Please enter a valid budget amount");
       return;
     }
     try {
@@ -78,12 +81,19 @@ export function BudgetOverview() {
   };
 
   const handleAddToSavings = async () => {
-    if (remainingBudget <= 0) {
-      toast.info("You have no remaining budget to add to savings.");
+    const amount = parseFloat(transferAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.warn("Please enter a valid amount to transfer.");
+      return;
+    }
+    if (amount > remainingBudget) {
+      toast.warn("Transfer amount exceeds remaining budget!");
       return;
     }
     try {
-      await addToSavings();
+      await addToSavings(amount);
+      setTransferAmount("");
+      setIsTransferToSavingsDialogOpen(false);
     } catch (err) {
       console.error("Add to savings error:", err);
       toast.error("Failed to add to savings. Please try again.");
@@ -99,7 +109,7 @@ export function BudgetOverview() {
     try {
       await transferFromSavings(amount);
       setTransferAmount("");
-      setIsTransferDialogOpen(false);
+      setIsTransferFromSavingsDialogOpen(false);
     } catch (err) {
       console.error("Transfer from savings error:", err);
       toast.error("Failed to transfer from savings. Please try again.");
@@ -178,10 +188,43 @@ export function BudgetOverview() {
           </div>
         </form>
         <div className="flex space-x-2">
-          <Button onClick={handleAddToSavings} disabled={isLoading}>
-            {isLoading ? "Saving..." : "Add to Savings"}
-          </Button>
-          <Dialog open={isTransferDialogOpen} onOpenChange={setIsTransferDialogOpen}>
+          <Dialog
+            open={isTransferToSavingsDialogOpen}
+            onOpenChange={setIsTransferToSavingsDialogOpen}
+          >
+            <DialogTrigger asChild>
+              <Button type="button" disabled={isLoading}>
+                Add to Savings
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Transfer to Savings</DialogTitle>
+                <DialogDescription>
+                  Enter the amount you want to transfer from your budget to
+                  savings.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <Input
+                  type="number"
+                  value={transferAmount}
+                  onChange={(e) => setTransferAmount(e.target.value)}
+                  min="0.01"
+                  step="0.01"
+                />
+              </div>
+              <DialogFooter>
+                <Button onClick={handleAddToSavings} disabled={isLoading}>
+                  {isLoading ? "Transferring..." : "Transfer"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Dialog
+            open={isTransferFromSavingsDialogOpen}
+            onOpenChange={setIsTransferFromSavingsDialogOpen}
+          >
             <DialogTrigger asChild>
               <Button type="button" disabled={isLoading}>
                 Transfer from Savings
@@ -191,8 +234,8 @@ export function BudgetOverview() {
               <DialogHeader>
                 <DialogTitle>Transfer from Savings</DialogTitle>
                 <DialogDescription>
-                  Enter the amount you want to transfer from your savings to your
-                  budget.
+                  Enter the amount you want to transfer from your savings to
+                  your budget.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">

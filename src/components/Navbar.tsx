@@ -1,17 +1,15 @@
 import { Menu, Bell } from "lucide-react";
 import {
   NavigationMenu,
-  NavigationMenuContent,
   NavigationMenuItem,
   NavigationMenuLink,
   NavigationMenuList,
-  NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/useAuth";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useNotification } from "./NotificationContext";
 import {
   DropdownMenu,
@@ -19,10 +17,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 export default function Navbar() {
   const { signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { notifications, removeNotification, isLoading } = useNotification();
 
   const handleSignOut = async () => {
@@ -34,55 +34,65 @@ export default function Navbar() {
     }
   };
 
+  const isActive = (path: string) => location.pathname === path;
+
   return (
     <header className="border-b">
       <div className="flex h-16 items-center px-4 container mx-auto">
         <div className="mr-8">
-          <a href="/" className="font-bold text-xl">
+          <Link to="/" className="font-bold text-xl">
             Budgee
-          </a>
+          </Link>
         </div>
 
         <div className="hidden md:flex flex-1">
           <NavigationMenu>
             <NavigationMenuList>
               <NavigationMenuItem>
-                <NavigationMenuTrigger>Dashboard</NavigationMenuTrigger>
-                <NavigationMenuContent>
-                  <div className="p-4 w-[16rem]">
-                    <div className="grid gap-3">
-                      <a
-                        href="/home"
-                        className="block select-none space-y-1 rounded-md p-3 hover:bg-accent hover:text-accent-foreground"
-                      >
-                        <div className="font-medium">Main</div>
-                        <p className="text-sm text-muted-foreground">
-                          Manage budget and expenses
-                        </p>
-                      </a>
-                      <a
-                        href="/chat"
-                        className="block select-none space-y-1 rounded-md p-3 hover:bg-accent hover:text-accent-foreground"
-                      >
-                        <div className="font-medium">Chat</div>
-                        <p className="text-sm text-muted-foreground">
-                          Chat with our AI assistant
-                        </p>
-                      </a>
-                    </div>
-                  </div>
-                </NavigationMenuContent>
-              </NavigationMenuItem>
-
-              <NavigationMenuItem>
-                <NavigationMenuLink className={navigationMenuTriggerStyle()}>
-                  About
+                <NavigationMenuLink
+                  asChild
+                  className={cn(
+                    navigationMenuTriggerStyle(),
+                    isActive("/home") && "bg-primary text-primary-foreground"
+                  )}
+                >
+                  <Link to="/home">Main</Link>
                 </NavigationMenuLink>
               </NavigationMenuItem>
 
               <NavigationMenuItem>
-                <NavigationMenuLink className={navigationMenuTriggerStyle()}>
-                  Contact
+                <NavigationMenuLink
+                  asChild
+                  className={cn(
+                    navigationMenuTriggerStyle(),
+                    isActive("/chat") && "bg-primary text-primary-foreground"
+                  )}
+                >
+                  <Link to="/chat">Chat</Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+
+              <NavigationMenuItem>
+                <NavigationMenuLink
+                  asChild
+                  className={cn(
+                    navigationMenuTriggerStyle(),
+                    isActive("/about") && "bg-primary text-primary-foreground"
+                  )}
+                >
+                  <Link to="/about">About</Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+
+              <NavigationMenuItem>
+                <NavigationMenuLink
+                  asChild
+                  className={cn(
+                    navigationMenuTriggerStyle(),
+                    isActive("/contact") && "bg-primary text-primary-foreground"
+                  )}
+                >
+                  <Link to="/contact">Contact</Link>
                 </NavigationMenuLink>
               </NavigationMenuItem>
             </NavigationMenuList>
@@ -120,7 +130,8 @@ export default function Navbar() {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="ghost" onClick={handleSignOut}>
+
+          <Button variant="ghost" onClick={handleSignOut} className="hidden md:flex">
             Sign Out
           </Button>
 
@@ -131,35 +142,52 @@ export default function Navbar() {
                   <Menu className="h-6 w-6" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="right">
-                <nav className="flex flex-col gap-4">
-                  <div className="py-2">
-                    <p className="font-medium mb-2 text-lg">Dashboard</p>
-                    <div className="pl-4 flex flex-col gap-2">
-                      <a href="/home" className="block py-2">
-                        <div className="font-medium">Main</div>
-                        <p className="text-sm text-muted-foreground">
-                          Manage budget and expenses
-                        </p>
-                      </a>
-                      <a href="/chat" className="block py-2">
-                        <div className="font-medium">Chat</div>
-                        <p className="text-sm text-muted-foreground">
-                          Chat with our AI assistant
-                        </p>
-                      </a>
-                    </div>
-                  </div>
-                  <a href="#" className="block py-2 text-lg">
-                    About
-                  </a>
-                  <a href="#" className="block py-2 text-lg">
-                    Contact
-                  </a>
+              <SheetContent side="right" className="w-[300px]">
+                <nav className="flex flex-col gap-4 pt-4">
                   <Button
-                    variant="ghost"
+                    asChild
+                    variant={isActive("/home") ? "default" : "ghost"}
+                    className={cn(
+                      "justify-start h-12 text-lg",
+                      isActive("/home") && "font-semibold"
+                    )}
+                  >
+                    <Link to="/home">Main</Link>
+                  </Button>
+                  <Button
+                    asChild
+                    variant={isActive("/chat") ? "default" : "ghost"}
+                    className={cn(
+                      "justify-start h-12 text-lg",
+                      isActive("/chat") && "font-semibold"
+                    )}
+                  >
+                    <Link to="/chat">Chat</Link>
+                  </Button>
+                  <Button
+                    asChild
+                    variant={isActive("/about") ? "default" : "ghost"}
+                    className={cn(
+                      "justify-start h-12 text-lg",
+                      isActive("/about") && "font-semibold"
+                    )}
+                  >
+                    <Link to="/about">About</Link>
+                  </Button>
+                  <Button
+                    asChild
+                    variant={isActive("/contact") ? "default" : "ghost"}
+                    className={cn(
+                      "justify-start h-12 text-lg",
+                      isActive("/contact") && "font-semibold"
+                    )}
+                  >
+                    <Link to="/contact">Contact</Link>
+                  </Button>
+                  <Button
+                    variant="destructive"
                     onClick={handleSignOut}
-                    className="justify-start px-2"
+                    className="justify-start h-12 text-lg mt-4"
                   >
                     Sign Out
                   </Button>

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Send, Search, Plus } from "lucide-react";
+import { Send, Search, Plus, Menu, ArrowLeft } from "lucide-react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { useBudget } from "./BudgetContext";
 
@@ -23,7 +23,7 @@ type Conversation = {
   unreadCount: number;
 };
 
-export function DesktopChatInterface() {
+export function ResponsiveChatInterface() {
   const {
     transactions,
     totalBudget,
@@ -31,6 +31,8 @@ export function DesktopChatInterface() {
     savings,
     isLoading: budgetLoading,
   } = useBudget();
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([
     {
       id: 1,
@@ -96,7 +98,7 @@ export function DesktopChatInterface() {
   };
 
   const handleSend = async () => {
-    if (newMessage.trim() !== "''") {
+    if (newMessage.trim() !== "") {
       setIsLoading(true);
       const userMessage: Message = {
         id: messages.length + 1,
@@ -113,7 +115,7 @@ export function DesktopChatInterface() {
                 ...conv,
                 lastMessage:
                   newMessage.slice(0, 30) +
-                  (newMessage.length > 30 ? "'...'" : "''"),
+                  (newMessage.length > 30 ? "..." : ""),
               }
             : conv
         )
@@ -141,7 +143,7 @@ export function DesktopChatInterface() {
         setIsLoading(false);
       }
 
-      setNewMessage("''");
+      setNewMessage("");
     }
   };
 
@@ -183,27 +185,47 @@ export function DesktopChatInterface() {
 
   return (
     <div className="flex h-screen bg-white dark:bg-zinc-950">
-      <div className="w-80 border-r flex flex-col">
-        <div className="p-4 border-b">
-          <div className="relative">
+      {/* Sidebar */}
+      <div
+        className={`
+          fixed inset-y-0 left-0 z-50 
+          lg:relative lg:translate-x-0
+          w-80 bg-white dark:bg-zinc-950 border-r
+          transform transition-transform duration-300 ease-in-out
+          ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
+        `}
+      >
+        <div className="p-4 border-b flex items-center justify-between">
+          <div className="relative flex-1">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-zinc-500 dark:text-zinc-400" />
             <Input placeholder="Search conversations" className="pl-8" />
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden ml-2"
+            onClick={() => setIsSidebarOpen(false)}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 h-[calc(100vh-8rem)]">
           {conversations.map((conversation) => (
             <div
               key={conversation.id}
               className={`p-4 cursor-pointer hover:bg-muted ${
-                activeConversation === conversation.id ? "'bg-muted'" : "''"
+                activeConversation === conversation.id ? "bg-muted" : ""
               }`}
-              onClick={() => setActiveConversation(conversation.id)}
+              onClick={() => {
+                setActiveConversation(conversation.id);
+                setIsSidebarOpen(false);
+              }}
             >
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="font-semibold">{conversation.name}</h3>
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 line-clamp-1">
                     {conversation.lastMessage}
                   </p>
                 </div>
@@ -217,22 +239,33 @@ export function DesktopChatInterface() {
           ))}
         </ScrollArea>
 
-        <div className="p-4 border-t mt-auto">
+        <div className="p-4 border-t">
           <Button className="w-full">
             <Plus className="w-4 h-4 mr-2" />
             New Chat
           </Button>
-          </div>
+        </div>
       </div>
 
-      <div className="flex-1 flex flex-col h-screen">
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col h-screen w-full">
         <div className="p-4 border-b flex justify-between items-center">
-          <h2 className="text-2xl font-bold">
-            {conversations.find((c) => c.id === activeConversation)?.name}
-          </h2>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden"
+              onClick={() => setIsSidebarOpen(true)}
+            >
+              <Menu className="h-4 w-4" />
+            </Button>
+            <h2 className="text-xl font-bold line-clamp-1">
+              {conversations.find((c) => c.id === activeConversation)?.name}
+            </h2>
+          </div>
         </div>
 
-        <ScrollArea className="flex-1 p-4 pb-20">
+        <ScrollArea className="flex-1 p-4 pb-24">
           {messages.map((message) => (
             <div
               key={message.id}
@@ -241,19 +274,19 @@ export function DesktopChatInterface() {
               }`}
             >
               <div
-                className={`flex items-start space-x-2 max-w-[70%] ${
+                className={`flex items-start space-x-2 max-w-[85%] sm:max-w-[75%] ${
                   message.sender === "user"
                     ? "flex-row-reverse space-x-reverse"
                     : ""
                 }`}
               >
-                <Avatar className="w-8 h-8">
+                <Avatar className="w-8 h-8 shrink-0">
                   <AvatarFallback>
                     {message.sender === "user" ? "U" : "A"}
                   </AvatarFallback>
                 </Avatar>
                 <div
-                  className={`p-3 rounded-lg ${
+                  className={`p-3 rounded-lg break-words ${
                     message.sender === "user"
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted"
@@ -293,13 +326,13 @@ export function DesktopChatInterface() {
           )}
         </ScrollArea>
 
-        <div className="p-4 border-t bg-white dark:bg-zinc-950 fixed bottom-0 left-80 right-0">
+        <div className="p-4 border-t bg-white dark:bg-zinc-950 fixed bottom-0 left-0 right-0 lg:left-80">
           <form
             onSubmit={(e) => {
               e.preventDefault();
               handleSend();
             }}
-            className="flex space-x-2"
+            className="flex space-x-2 max-w-[1200px] mx-auto"
           >
             <Input
               value={newMessage}
@@ -310,7 +343,7 @@ export function DesktopChatInterface() {
             />
             <Button type="submit" disabled={isLoading}>
               <Send className="h-4 w-4 mr-2" />
-              Send
+              <span className="hidden sm:inline">Send</span>
             </Button>
           </form>
         </div>
@@ -319,4 +352,4 @@ export function DesktopChatInterface() {
   );
 }
 
-export default DesktopChatInterface;
+export default ResponsiveChatInterface;

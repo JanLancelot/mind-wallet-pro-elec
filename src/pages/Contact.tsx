@@ -1,4 +1,3 @@
-import React from "react";
 import cha from "../assets/cha.webp";
 import hyunjin from "../assets/hyunjin.webp";
 import jungkok from "../assets/jungkok.webp";
@@ -26,7 +25,7 @@ const developers = [
   },
 ];
 
-export default function Contact() {
+export default function ContactPage() {
   return (
     <div>
       <Navbar />

@@ -56,13 +56,16 @@ export function BudgetOverview() {
     transferFromSavings,
     isLoading,
     savings,
+    addToBudget,
   } = useBudget();
   const [newBudget, setNewBudget] = useState("");
   const [transferAmount, setTransferAmount] = useState("");
+  const [addBudgetAmount, setAddBudgetAmount] = useState("");
   const [isTransferToSavingsDialogOpen, setIsTransferToSavingsDialogOpen] =
     useState(false);
   const [isTransferFromSavingsDialogOpen, setIsTransferFromSavingsDialogOpen] =
     useState(false);
+  const [isAddToBudgetDialogOpen, setIsAddToBudgetDialogOpen] = useState(false);
 
   const handleSetBudget = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -113,6 +116,21 @@ export function BudgetOverview() {
     } catch (err) {
       console.error("Transfer from savings error:", err);
       toast.error("Failed to transfer from savings. Please try again.");
+    }
+  };
+  const handleAddToBudget = async () => {
+    const amount = parseFloat(addBudgetAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.warn("Please enter a valid amount to add to budget.");
+      return;
+    }
+    try {
+      await addToBudget(amount);
+      setAddBudgetAmount("");
+      setIsAddToBudgetDialogOpen(false);
+    } catch (err) {
+      console.error("Add to budget error:", err);
+      toast.error("Failed to add to budget. Please try again.");
     }
   };
 
@@ -187,13 +205,42 @@ export function BudgetOverview() {
             </Button>
           </div>
         </form>
-        <div className="flex space-x-2">
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3">
+          <Dialog open={isAddToBudgetDialogOpen} onOpenChange={setIsAddToBudgetDialogOpen}>
+            <DialogTrigger asChild>
+              <Button type="button" disabled={isLoading} className="w-full">
+                Add to Budget
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Add to Budget</DialogTitle>
+                <DialogDescription>
+                  Enter the amount you want to add to your budget.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <Input
+                  type="number"
+                  value={addBudgetAmount}
+                  onChange={(e) => setAddBudgetAmount(e.target.value)}
+                  min="0.01"
+                  step="0.01"
+                />
+              </div>
+              <DialogFooter>
+                <Button onClick={handleAddToBudget} disabled={isLoading}>
+                  {isLoading ? "Adding..." : "Add"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <Dialog
             open={isTransferToSavingsDialogOpen}
             onOpenChange={setIsTransferToSavingsDialogOpen}
           >
             <DialogTrigger asChild>
-              <Button type="button" disabled={isLoading}>
+              <Button type="button" disabled={isLoading} className="w-full">
                 Add to Savings
               </Button>
             </DialogTrigger>
@@ -226,7 +273,7 @@ export function BudgetOverview() {
             onOpenChange={setIsTransferFromSavingsDialogOpen}
           >
             <DialogTrigger asChild>
-              <Button type="button" disabled={isLoading}>
+              <Button type="button" disabled={isLoading} className="w-full">
                 Transfer from Savings
               </Button>
             </DialogTrigger>

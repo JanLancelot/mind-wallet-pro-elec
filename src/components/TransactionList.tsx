@@ -228,6 +228,13 @@ export function TransactionList() {
     0
   );
 
+  const formatCurrency = (amount: number) => {
+    return amount.toLocaleString("en-PH", {
+      style: "currency",
+      currency: "PHP",
+    });
+  };
+
   return (
     <div>
       <Card>
@@ -287,7 +294,7 @@ export function TransactionList() {
                 {filteredTransactions.length} transactions found
               </div>
               <div className="text-sm font-medium">
-                Total: ₱{totalAmount.toFixed(2)}
+                Total: {formatCurrency(totalAmount)}
               </div>
             </div>
           </div>
@@ -336,7 +343,7 @@ export function TransactionList() {
                         }
                         className="text-xs sm:text-sm"
                       >
-                        ₱{transaction.amount.toFixed(2)}
+                        {formatCurrency(transaction.amount)}
                       </Badge>
                     </TableCell>
                     <TableCell>

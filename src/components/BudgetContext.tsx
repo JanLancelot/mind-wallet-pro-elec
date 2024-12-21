@@ -52,6 +52,7 @@ type BudgetContextType = {
   remainingBudget: number;
   addToSavings: (amount: number) => Promise<void>;
   transferFromSavings: (amount: number) => Promise<void>;
+    addToBudget: (amount: number) => Promise<void>;
   savings: number;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
@@ -361,6 +362,45 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+    const addToBudget = async (amount: number) => {
+    setIsLoading(true);
+    if (!user?.uid) {
+      throw new Error("User must be logged in to add to budget");
+    }
+
+    if (amount <= 0) {
+      toast.warn("Please enter a valid amount to add to budget.");
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, "transactions"), {
+        userId: user.uid,
+        title: "Add to Budget",
+        description: "Funds added to budget",
+        amount: amount,
+        date: new Date().toISOString(),
+        mood: "neutral",
+      });
+
+        const newTotalBudget = totalBudget + amount;
+        const newRemainingBudget = remainingBudget + amount;
+        await updateBudget({ totalBudget: newTotalBudget, remainingBudget: newRemainingBudget });
+        setTotalBudget(newTotalBudget);
+        setRemainingBudget(newRemainingBudget);
+
+
+      toast.success("Funds added to budget!");
+    } catch (error) {
+      console.error("Error adding to budget:", error);
+      toast.error("Failed to add to budget. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
   const addToSavings = async (amount: number) => {
     setIsLoading(true);
     if (!user?.uid) {
@@ -476,6 +516,7 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({
         setIsLoading,
         updateTransaction,
         deleteTransaction,
+         addToBudget,
       }}
     >
       {children}

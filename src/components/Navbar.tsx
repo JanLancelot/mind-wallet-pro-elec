@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
+import budgee from "../assets/budgee.png";
+
 export default function Navbar() {
   const { signOut } = useAuth();
   const navigate = useNavigate();
@@ -39,9 +41,10 @@ export default function Navbar() {
   return (
     <header className="border-b">
       <div className="flex h-16 items-center px-4 container mx-auto">
-        <div className="mr-8">
-          <Link to="/" className="font-bold text-xl">
-            Budgee
+        <div className="mr-8 flex items-center">
+          <Link to="/" className="font-bold text-xl flex items-center">
+             <img src={budgee} alt="Budgee Logo" className="h-8 w-8 mr-2 rounded-full" />
+             Budgee
           </Link>
         </div>
 
